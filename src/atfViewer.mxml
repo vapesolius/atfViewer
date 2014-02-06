@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
+					   xmlns:s="library://ns.adobe.com/flex/spark" 
+					   xmlns:mx="library://ns.adobe.com/flex/mx" backgroundAlpha="0" 
+					   addedToStage="windowedapplication1_creationCompleteHandler()" width="800" height="600"
+					   preinitialize="windowedapplication1_preinitializeHandler(event)">
+	<s:layout>
+		<s:VerticalLayout paddingTop="5" paddingLeft="10" paddingRight="10" horizontalAlign="right" paddingBottom="5">
+			<s:gap>3</s:gap>
+		</s:VerticalLayout>
+	</s:layout>
+	<fx:Script>
+		<![CDATA[
+			import flash.utils.setTimeout;
+			
+			import mx.collections.XMLListCollection;
+			import mx.events.FlexEvent;
+			import mx.events.ListEvent;
+			import mx.events.ResizeEvent;
+			
+			import spark.events.IndexChangeEvent;
+			
+			import starling.core.Starling;
+			import starling.textures.Texture;
+			private var mStarling:Starling;
+			
+			protected function windowedapplication1_creationCompleteHandler():void
+			{
+				if (!atfFile){
+					so = SharedObject.getLocal("atfViewerSettings");
+					if (so.size > 0) {
+						var atfPath:String = so.data.atfPath;
+						if (atfPath){
+							loadPath(atfPath);
+						}
+					}
+				}
+				
+				
+				// TODO Auto-generated method stub
+				stage.align = StageAlign.TOP_LEFT;
+				stage.scaleMode = StageScaleMode.NO_SCALE;
+				mStarling = new Starling(StarlingView,stage);
+				mStarling.antiAliasing = 1;
+				mStarling.start();
+				stage.addEventListener(ResizeEvent.RESIZE, resizeStage);
+				stage.addEventListener("ItemOver",itemOverHandler);
+				
+				stage.addEventListener(NativeDragEvent.NATIVE_DRAG_ENTER, doDragEnter);
+				stage.addEventListener(NativeDragEvent.NATIVE_DRAG_DROP, doDragDrop);
+				stage.addEventListener(NativeDragEvent.NATIVE_DRAG_EXIT, doDragExit);
+			}
+			
+			private function doDragEnter(e:NativeDragEvent):void
+			{
+				NativeDragManager.acceptDragDrop(stage);
+			}
+			private function doDragDrop(e:NativeDragEvent):void
+			{
+				var dropFiles:Array = e.clipboard.getData(ClipboardFormats.FILE_LIST_FORMAT) as Array;
+				for each (var file:File in dropFiles){
+					switch (file.extension){
+						case "atf" :
+							loadPath(file.nativePath);
+							break;
+					}
+				}
+			}
+			private function doDragExit(e:NativeDragEvent):void
+			{
+				
+			}
+				
+			
+			private function itemOverHandler(e:ItemEvent):void {
+				graphics.clear();
+				graphics.beginFill(0x00FF00,0.3);
+				graphics.lineStyle(1, 0x00FF00, 1);
+				graphics.drawRect(e.data.@x,e.data.@y,
+					e.data.@width,e.data.@height);
+				graphics.endFill();
+			}
+			
+			private function resizeStage(e:Event):void {
+				var viewPortRectangle:Rectangle = new Rectangle();
+				viewPortRectangle.width = stage.stageWidth;
+				viewPortRectangle.height = stage.stageHeight;
+				Starling.current.viewPort = viewPortRectangle;
+				
+				mStarling.stage.stageWidth = stage.stageWidth;
+				mStarling.stage.stageHeight = stage.stageHeight;
+			}
+			
+			private var file:File;
+			protected function button1_clickHandler(event:MouseEvent):void
+			{				
+					file = new File();
+					file.addEventListener(Event.SELECT, file_select);
+					file.browseForDirectory('Select ATF directory');			
+			}
+			private function file_select(evt:Event):void {
+				atfList.directory = File(evt.currentTarget);
+			}
+			
+			private var so:SharedObject;
+			
+			private function save():void{
+				if (!so)return;
+				so.data.atfPath = atfFile.nativePath;
+				
+				var flushStatus : String = null;
+				try {
+					flushStatus = so.flush(10000);
+				} catch (error : Error) {
+					trace("Error...Could not write SharedObject to disk");
+				}
+				if (flushStatus != null) {
+					switch (flushStatus) {
+						case SharedObjectFlushStatus.PENDING:
+							trace("Requesting permission to save object...");
+							so.addEventListener(NetStatusEvent.NET_STATUS, onFlushStatus);
+							break;
+						case SharedObjectFlushStatus.FLUSHED:
+							break;
+					}
+				}
+			}
+			
+			private function onFlushStatus(event : NetStatusEvent) : void {
+				trace("User closed permission dialog...\n");
+				switch (event.info.code) {
+					case "SharedObject.Flush.Success":
+						trace("User granted permission -- value saved.");
+						break;
+					case "SharedObject.Flush.Failed":
+						trace("User denied permission -- value not saved.");
+						break;
+				}
+				
+				so.removeEventListener(NetStatusEvent.NET_STATUS, onFlushStatus);
+			}
+			
+			private var atfFile:File;
+			private var xmlFile:File;
+			
+			protected function atfList_changeHandler():void
+			{
+				graphics.clear();
+				// TODO Auto-generated method stub
+				atfFile = atfList.selectedItem as File;
+				if (atfFile.isDirectory)return;
+				save();
+				loadPath(atfFile.nativePath);
+			}
+			
+			protected function loaded(event:Event):void 
+			{ 
+				atfFile.removeEventListener(Event.COMPLETE, loaded);
+				var data:ByteArray = atfFile.data;
+				var texture:Texture = Texture.fromAtfData(data,1,false);
+				dispatchEvent(new ATFEvent(texture));
+			}
+			
+			protected function xmlLoaded(event:Event):void 
+			{ 
+				xmlFile.removeEventListener(Event.COMPLETE, loaded);
+				var data:ByteArray = xmlFile.data;
+				var text:String = data.readUTFBytes(data.length);
+				var xml:XML = XML(text);
+				texturesList.dataProvider = new XMLListCollection(xml.SubTexture);
+			}
+			
+			protected function texturesList_changeHandler():void
+			{
+				if (!texturesList.selectedItem)return;
+				
+				graphics.clear();
+				graphics.beginFill(0x00FF00,0.3);
+				graphics.lineStyle(1, 0x00FF00, 1);
+				graphics.drawRect(texturesList.selectedItem.@x,texturesList.selectedItem.@y,
+					texturesList.selectedItem.@width,texturesList.selectedItem.@height);
+				graphics.endFill();
+			}
+			
+			protected function windowedapplication1_preinitializeHandler(event:FlexEvent):void
+			{
+				NativeApplication.nativeApplication.addEventListener(InvokeEvent.INVOKE, onInvoke);
+				
+			}
+			
+			private function onInvoke(event:InvokeEvent):void
+			{
+				if(event.arguments[0]!=null) {
+					setTimeout(loadPath,3000,event.arguments[0]);
+					
+				}
+			}
+			
+			private function loadPath(path:String):void{
+				graphics.clear();
+				atfFile = new File(path);
+				atfList.directory = atfFile.parent;
+				atfFile.addEventListener(Event.COMPLETE, loaded); 
+				atfFile.load();
+				var name:String = atfFile.name.split(".")[0];
+				xmlFile = new File(atfList.directory.nativePath+"/"+name+".xml");
+				if (xmlFile.exists){
+					xmlFile.addEventListener(Event.COMPLETE,xmlLoaded);
+					xmlFile.load();
+				}
+			}
+			
+		]]>
+	</fx:Script>
+	<s:Button label="ATF Dir" click="button1_clickHandler(event)" width="200"/>
+	<mx:FileSystemList width="200" height="200" id="atfList" change="atfList_changeHandler()">
+		
+		<mx:extensions>
+			<fx:Array>
+				<fx:String>atf</fx:String>
+			</fx:Array>
+		</mx:extensions>
+	</mx:FileSystemList>
+	<s:Button label="Textures" width="200"/>
+	<s:List width="200" height="100%" id="texturesList" labelField="@name" 
+			change="texturesList_changeHandler()" itemRenderer="ListItemRenderer"/>
+</s:WindowedApplication>
