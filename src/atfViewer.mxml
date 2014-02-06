@@ -4,20 +4,24 @@
 					   xmlns:mx="library://ns.adobe.com/flex/mx" backgroundAlpha="0" 
 					   addedToStage="windowedapplication1_creationCompleteHandler()" width="800" height="600"
 					   preinitialize="windowedapplication1_preinitializeHandler(event)">
-	<s:layout>
-		<s:VerticalLayout paddingTop="5" paddingLeft="10" paddingRight="10" horizontalAlign="right" paddingBottom="5">
-			<s:gap>3</s:gap>
-		</s:VerticalLayout>
-	</s:layout>
+	<fx:Declarations>
+		<s:RadioButtonGroup id="cardtype" 
+							itemClick="cardtype_itemClickHandler(event)"/>
+	</fx:Declarations>
+
 	<fx:Script>
 		<![CDATA[
 			import flash.utils.setTimeout;
 			
+			import mx.collections.ArrayCollection;
 			import mx.collections.XMLListCollection;
 			import mx.events.FlexEvent;
+			import mx.events.ItemClickEvent;
 			import mx.events.ListEvent;
 			import mx.events.ResizeEvent;
 			
+			import spark.components.BorderContainer;
+			import spark.components.ToggleButton;
 			import spark.events.IndexChangeEvent;
 			
 			import starling.core.Starling;
@@ -148,56 +152,63 @@
 				graphics.clear();
 				// TODO Auto-generated method stub
 				atfFile = atfList.selectedItem as File;
-				if (atfFile.isDirectory)return;
+				if (atfFile.isDirectory)return;				
 				save();
 				loadPath(atfFile.nativePath);
 			}
 			
 			protected function loaded(event:Event):void 
-			{ 
+			{ 		
 				atfFile.removeEventListener(Event.COMPLETE, loaded);
 				var data:ByteArray = atfFile.data;
 				var texture:Texture = Texture.fromAtfData(data,1,false);
-				dispatchEvent(new ATFEvent(texture));
+				dispatchEvent(new ATFEvent(ATFEvent.LOADED,texture));
 			}
 			
 			protected function xmlLoaded(event:Event):void 
 			{ 
-				xmlFile.removeEventListener(Event.COMPLETE, loaded);
+				canvas.scaleX = canvas.scaleY = 1;
+				hundred.selected = true;
+				canvas.removeAllElements();
+				xmlFile.removeEventListener(Event.COMPLETE, xmlLoaded);
 				var data:ByteArray = xmlFile.data;
 				var text:String = data.readUTFBytes(data.length);
 				var xml:XML = XML(text);
-				texturesList.dataProvider = new XMLListCollection(xml.SubTexture);
+				var dp:ArrayCollection = new ArrayCollection();
+				for each (var texture:XML in xml.SubTexture){
+					var cont:ToggleButton = new ToggleButton();
+					cont.x = texture.@x;
+					cont.y = texture.@y;
+					cont.width = texture.@width;
+					cont.height = texture.@height;
+					cont.toolTip = texture.@name+"\n"+texture.@width+" X "+texture.@height;
+					cont.setStyle("skinClass",TButtonSkin);
+					canvas.addElement(cont);
+					dp.addItem({name:texture.@name,button:cont});
+				}
+				texturesList.dataProvider = dp;
 			}
 			
 			protected function texturesList_changeHandler():void
 			{
-				if (!texturesList.selectedItem)return;
-				
-				graphics.clear();
-				graphics.beginFill(0x00FF00,0.3);
-				graphics.lineStyle(1, 0x00FF00, 1);
-				graphics.drawRect(texturesList.selectedItem.@x,texturesList.selectedItem.@y,
-					texturesList.selectedItem.@width,texturesList.selectedItem.@height);
-				graphics.endFill();
+				if (!texturesList.selectedItem)return;				
+				texturesList.selectedItem.button.selected = true;
 			}
 			
 			protected function windowedapplication1_preinitializeHandler(event:FlexEvent):void
 			{
-				NativeApplication.nativeApplication.addEventListener(InvokeEvent.INVOKE, onInvoke);
-				
+				NativeApplication.nativeApplication.addEventListener(InvokeEvent.INVOKE, onInvoke);				
 			}
 			
 			private function onInvoke(event:InvokeEvent):void
 			{
 				if(event.arguments[0]!=null) {
-					setTimeout(loadPath,3000,event.arguments[0]);
-					
+					setTimeout(loadPath,3000,event.arguments[0]);				
 				}
 			}
 			
 			private function loadPath(path:String):void{
-				graphics.clear();
+				
 				atfFile = new File(path);
 				atfList.directory = atfFile.parent;
 				atfFile.addEventListener(Event.COMPLETE, loaded); 
@@ -210,18 +221,69 @@
 				}
 			}
 			
+			protected function button2_clickHandler(event:MouseEvent):void
+			{
+				atfList.refresh();				
+			}
+			
+			protected function cardtype_itemClickHandler(event:ItemClickEvent):void
+			{
+				// TODO Auto-generated method stub
+				
+			}
+			
+			protected function r50_clickHandler(event:MouseEvent):void
+			{
+				canvas.scaleX = canvas.scaleY = 0.5;
+				dispatchEvent(new ATFEvent(ATFEvent.ZOOM,0.5));
+			}
+			
+			protected function r25_clickHandler(event:MouseEvent):void
+			{
+				canvas.scaleX = canvas.scaleY = 0.25;
+				dispatchEvent(new ATFEvent(ATFEvent.ZOOM,0.25));
+			}
+			
+			protected function r100_clickHandler(event:MouseEvent):void
+			{
+				canvas.scaleX = canvas.scaleY = 1;
+				dispatchEvent(new ATFEvent(ATFEvent.ZOOM,1));
+			}
+			
+			protected function r70_clickHandler(event:MouseEvent):void
+			{
+				canvas.scaleX = canvas.scaleY = 0.7;
+				dispatchEvent(new ATFEvent(ATFEvent.ZOOM,0.7));
+			}
+			
 		]]>
 	</fx:Script>
-	<s:Button label="ATF Dir" click="button1_clickHandler(event)" width="200"/>
-	<mx:FileSystemList width="200" height="200" id="atfList" change="atfList_changeHandler()">
-		
-		<mx:extensions>
-			<fx:Array>
-				<fx:String>atf</fx:String>
-			</fx:Array>
-		</mx:extensions>
-	</mx:FileSystemList>
-	<s:Button label="Textures" width="200"/>
-	<s:List width="200" height="100%" id="texturesList" labelField="@name" 
-			change="texturesList_changeHandler()" itemRenderer="ListItemRenderer"/>
+	<s:Group width="100%" height="100%" id="canvas"/>
+	<s:VGroup right="0" width="200" height="100%" gap="3" paddingRight="5">
+		<s:HGroup width="100%">
+		<s:Button label="ATF Dir" click="button1_clickHandler(event)" width="100%"/>
+		<s:Button label="Refresh" click="button2_clickHandler(event)"/>	
+		</s:HGroup>
+		<mx:FileSystemList width="200" height="200" id="atfList" change="atfList_changeHandler()">
+			
+			<mx:extensions>
+				<fx:Array>
+					<fx:String>atf</fx:String>
+				</fx:Array>
+			</mx:extensions>
+		</mx:FileSystemList>
+		<s:Button label="Textures" width="200"/>
+		<s:BorderContainer width="200">
+			<s:layout>
+				<s:HorizontalLayout gap="2" paddingTop="3" paddingLeft="3"/>
+			</s:layout>
+			<s:RadioButton id="hundred" label="100%" groupName="1" selected="true" click="r100_clickHandler(event)"/>
+			<s:RadioButton label="70%" groupName="1" click="r70_clickHandler(event)"/>
+			<s:RadioButton label="50%" groupName="1" click="r50_clickHandler(event)"/>
+			<s:RadioButton label="25%" groupName="1" click="r25_clickHandler(event)"/>
+		</s:BorderContainer>
+		<s:List width="200" height="100%" id="texturesList" labelField="@name" 
+				change="texturesList_changeHandler()" itemRenderer="ListItemRenderer" allowMultipleSelection="true"/>
+	</s:VGroup>
+	
 </s:WindowedApplication>

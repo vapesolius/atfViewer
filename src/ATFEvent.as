@@ -7,11 +7,14 @@ package
 	
 	public class ATFEvent extends Event
 	{
-		public var texture:Texture;
-		public function ATFEvent(texture:Texture)
+		public static const LOADED:String = "ATFLoaded";
+		public static const ZOOM:String = "Zoom";
+		
+		public var data:Object;
+		public function ATFEvent(type:String,data:Object)
 		{
-			this.texture = texture;
-			super("ATFLoaded", true, false);
+			this.data = data;
+			super(type, true, false);
 		}
 	}
 }

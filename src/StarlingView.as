@@ -5,6 +5,7 @@ package
 	import starling.display.Quad;
 	import starling.display.Sprite;
 	import starling.events.Event;
+	import starling.textures.Texture;
 	
 	public class StarlingView extends Sprite
 	{
@@ -18,7 +19,8 @@ package
 		
 		private function onAdded ( e:Event ):void
 		{
-			Starling.current.nativeStage.addEventListener("ATFLoaded",onATFLoaded);
+			Starling.current.nativeStage.addEventListener(ATFEvent.LOADED,onATFLoaded);
+			Starling.current.nativeStage.addEventListener(ATFEvent.ZOOM,onZoom);
 		}
 		
 		private var image:Image;
@@ -27,8 +29,15 @@ package
 			if (image){
 				removeChild(image);
 			}
-			image = new Image(e.texture);
+			image = new Image(e.data as Texture);
 			addChild(image);
+		}
+		
+		private function onZoom(e:ATFEvent):void{
+			if (image){
+				image.scaleX = image.scaleY = e.data as Number;
+			}
+			
 		}
 	}
 }
